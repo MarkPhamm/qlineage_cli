@@ -5,6 +5,7 @@ import re
 
 from .columns import ColumnNode
 from .models import Graph
+from .ui.html import render_html as _render_html
 
 
 def _tree_lines(
@@ -52,6 +53,25 @@ def render_mermaid(graph: Graph) -> str:
     for edge in graph.edges:
         lines.append(f"  {_mermaid_id(edge.source)} --> {_mermaid_id(edge.target)}")
     return "\n".join(lines)
+
+
+def render_html(
+    graph: Graph | None,
+    sql: str = "",
+    *,
+    column: ColumnNode | None = None,
+    static: bool = True,
+    dialect: str = "snowflake",
+    root_name: str = "query",
+) -> str:
+    return _render_html(
+        graph,
+        sql,
+        column=column,
+        static=static,
+        dialect=dialect,
+        root_name=root_name,
+    )
 
 
 def render_column_tree(root: ColumnNode) -> str:

@@ -1,5 +1,5 @@
 from qlineage.models import Graph
-from qlineage.render import render_mermaid, render_tree
+from qlineage.render import render_html, render_mermaid, render_tree
 
 
 def test_tree_and_mermaid():
@@ -14,3 +14,6 @@ def test_tree_and_mermaid():
     assert "fct_orders" in tree
     assert "raw.orders" in tree
     assert "flowchart TD" in render_mermaid(graph)
+    html = render_html(graph, "select 1", static=True)
+    assert html.lstrip().startswith("<!DOCTYPE html>")
+    assert "fct_orders" in html

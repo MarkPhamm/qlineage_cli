@@ -4,16 +4,17 @@ import argparse
 import sys
 from pathlib import Path
 
-from .columns import trace_column
+from .columns import ColumnNode, trace_column
 from .dbt import DbtManifest, ManifestError
+from .models import Graph
 from .parser import ParseError, parse_sql_graph
-from .render import render_column_tree, render_json, render_mermaid, render_tree
+from .render import render_column_tree, render_html, render_json, render_mermaid, render_tree
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="qlineage",
-        description="Inspect local SQL/dbt lineage without connecting to your warehouse.",
+        description="QLineage CLI - inspect SQL/dbt lineage locally, without a warehouse.",
     )
     parser.add_argument("sql_file", nargs="?", type=Path, help="SQL or dbt model file")
     parser.add_argument("--dialect", choices=["snowflake", "redshift"], default="snowflake")
@@ -22,7 +23,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--model",
         help="dbt model name/unique_id; useful when no SQL file is passed",
     )
-    parser.add_argument("--format", choices=["tree", "json", "mermaid"], default="tree")
+    parser.add_argument(
+        "--format",
+        choices=["tree", "json", "mermaid", "html"],
+        default="html",
+        help="html opens in a browser; tree/json/mermaid print to the terminal",
+    )
+    parser.add_argument(
+        "--no-open",
+        action="store_true",
+        help="Write a standalone HTML snapshot to stdout instead of opening a browser",
+    )
+    parser.add_argument("--port", type=int, default=8765, help="Port for the local workspace")
     parser.add_argument("--column", help="Trace a single output column through the SQL")
     parser.add_argument(
         "--dbt-graph",
@@ -55,12 +67,76 @@ def _resolve_model(manifest: DbtManifest, args):
     return None
 
 
-def _render_graph(graph, fmt: str) -> str:
+def _render_graph(graph, fmt: str, *, sql: str = "", dialect: str = "snowflake") -> str:
     if fmt == "json":
         return render_json(graph)
     if fmt == "mermaid":
         return render_mermaid(graph)
+    if fmt == "html":
+        return render_html(graph, sql, static=True, dialect=dialect)
     return render_tree(graph)
+
+
+def _present(
+    args: argparse.Namespace,
+    graph: Graph,
+    *,
+    sql: str = "",
+    column: ColumnNode | None = None,
+    root_name: str = "query",
+) -> int:
+    if args.format != "html":
+        print(_render_graph(graph, args.format, sql=sql, dialect=args.dialect))
+        return 0
+
+    if args.no_open or not sys.stdout.isatty():
+        print(
+            render_html(
+                graph,
+                sql,
+                column=column,
+                static=True,
+                dialect=args.dialect,
+                root_name=root_name,
+            )
+        )
+        return 0
+
+    from .ui.server import serve
+
+    serve(
+        port=args.port,
+        dialect=args.dialect,
+        open_browser=True,
+        sql=sql,
+        graph=graph,
+        column=column,
+        root_name=root_name,
+    )
+    return 0
+
+
+def build_ui_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="qlineage ui",
+        description="Open the QLineage CLI workspace in a browser.",
+    )
+    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--dialect", choices=["snowflake", "redshift"], default="snowflake")
+    parser.add_argument(
+        "--no-open",
+        action="store_true",
+        help="Do not open a browser window",
+    )
+    return parser
+
+
+def run_ui(argv: list[str]) -> int:
+    args = build_ui_parser().parse_args(argv)
+    from .ui.server import serve
+
+    serve(port=args.port, dialect=args.dialect, open_browser=not args.no_open)
+    return 0
 
 
 def run(args: argparse.Namespace) -> int:
@@ -77,8 +153,8 @@ def run(args: argparse.Namespace) -> int:
         if not model:
             raise ManifestError("Could not match the requested model in manifest.json.")
         unique_id, _node = model
-        print(_render_graph(manifest.dependency_graph(unique_id, args.depth), args.format))
-        return 0
+        graph = manifest.dependency_graph(unique_id, args.depth)
+        return _present(args, graph, root_name=manifest.display_name(unique_id))
 
     sql: str
     root_name: str
@@ -102,8 +178,9 @@ def run(args: argparse.Namespace) -> int:
     if not sql.strip():
         raise ParseError("No SQL was available to analyze. Run `dbt compile` or pass a SQL file.")
 
-    if args.column:
-        print(render_column_tree(trace_column(sql, args.column, dialect=args.dialect)))
+    column = trace_column(sql, args.column, dialect=args.dialect) if args.column else None
+    if args.column and args.format != "html":
+        print(render_column_tree(column))
         return 0
 
     graph = parse_sql_graph(
@@ -112,14 +189,16 @@ def run(args: argparse.Namespace) -> int:
         root_name=root_name,
         relation_labels=relation_labels,
     )
-    print(_render_graph(graph, args.format))
-    return 0
+    return _present(args, graph, sql=sql, column=column, root_name=root_name)
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = build_parser()
-    args = parser.parse_args(argv)
+    argv = sys.argv[1:] if argv is None else list(argv)
     try:
+        if argv and argv[0] == "ui":
+            raise SystemExit(run_ui(argv[1:]))
+        parser = build_parser()
+        args = parser.parse_args(argv)
         raise SystemExit(run(args))
     except (ParseError, ManifestError, OSError) as exc:
         print(f"qlineage: {exc}", file=sys.stderr)

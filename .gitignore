@@ -8,5 +8,6 @@ dist/
 build/
 *.egg-info/
 .DS_Store
+lineage.html
 # dbt artifacts in real projects can be large
 # target/

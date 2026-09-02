@@ -11,6 +11,12 @@ class ColumnNode:
     name: str
     children: list[ColumnNode] = field(default_factory=list)
 
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "children": [child.to_dict() for child in self.children],
+        }
+
 
 def trace_column(sql: str, column: str, *, dialect: str) -> ColumnNode:
     try:
