@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 
 from qlineage.cli import build_parser, run
@@ -66,6 +67,57 @@ def test_cli_tree_still_prints_to_terminal(capsys):
     tree = capsys.readouterr().out
     assert "customer_revenue" in tree
     assert "raw.shop.orders" in tree
+
+
+def test_cli_mermaid_writes_a_markdown_file(tmp_path, capsys):
+    target = tmp_path / "docs" / "lineage.md"
+    args = build_parser().parse_args(
+        [
+            "examples/sql/customer_revenue.sql",
+            "--format",
+            "mermaid",
+            "--output",
+            str(target),
+            "--no-dbt",
+        ]
+    )
+    assert run(args) == 0
+    markdown = target.read_text()
+    assert markdown.startswith("# Lineage: customer_revenue")
+    assert "```mermaid\nflowchart TD" in markdown
+    assert "raw.shop.orders" in markdown
+    assert f"wrote {target}" in capsys.readouterr().err
+
+
+def test_cli_mermaid_defaults_to_model_named_markdown_file(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    monkeypatch.chdir(tmp_path)
+    sql_file = tmp_path / "dim_customers.sql"
+    sql_file.write_text("select id from raw.customers")
+
+    args = build_parser().parse_args([str(sql_file), "--format", "mermaid", "--no-dbt"])
+    assert run(args) == 0
+    capsys.readouterr()
+    markdown = (tmp_path / "dim_customers.lineage.md").read_text()
+    assert f"Source: `{sql_file}`" in markdown
+    assert "raw.customers" in markdown
+
+
+def test_cli_mermaid_stays_raw_when_piped(capsys):
+    args = build_parser().parse_args(
+        ["examples/sql/customer_revenue.sql", "--format", "mermaid", "--no-dbt"]
+    )
+    assert run(args) == 0
+    assert capsys.readouterr().out.startswith("flowchart TD")
+
+
+def test_cli_mermaid_output_without_markdown_suffix_stays_raw(tmp_path):
+    target = tmp_path / "lineage.mmd"
+    args = build_parser().parse_args(
+        ["examples/sql/customer_revenue.sql", "--format", "mermaid", "-o", str(target), "--no-dbt"]
+    )
+    assert run(args) == 0
+    assert target.read_text().startswith("flowchart TD")
 
 
 def test_column_node_to_dict():

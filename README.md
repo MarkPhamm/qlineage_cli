@@ -101,11 +101,15 @@ JSON:
 qlineage query.sql --format json
 ```
 
-Mermaid:
+Mermaid. In a terminal this writes a markdown file with the diagram in a `mermaid` code fence, named after the model (`dim_customers.lineage.md`), so it can be committed and rendered on GitHub. Use `--output` to choose the path, or pipe the command to get raw mermaid on stdout.
 
 ```bash
-qlineage query.sql --format mermaid
+qlineage models/marts/marketing/dim_customers.sql --format mermaid
+qlineage query.sql --format mermaid --output docs/lineage.md
+qlineage query.sql --format mermaid > lineage.mmd
 ```
+
+`--output` works for every format, so `--format json --output lineage.json` writes a file instead of printing.
 
 HTML is the default output. Piping or `--no-open` writes a self-contained static snapshot instead of starting the workspace server; the snapshot renders the same page but cannot re-analyze edited SQL. From inside the workspace you can also export the graph as SVG, PNG, or JSON.
 
@@ -167,7 +171,8 @@ qlineage ui [options]
 | Option | Default | Description |
 | --- | --- | --- |
 | `--dialect snowflake\|redshift` | `snowflake` | SQL dialect used for parsing |
-| `--format html\|tree\|json\|mermaid` | `html` | `html` opens the workspace; the rest print to the terminal |
+| `--format html\|tree\|json\|mermaid` | `html` | `html` opens the workspace; `mermaid` writes a markdown file; `tree`/`json` print to the terminal |
+| `--output PATH`, `-o PATH` | none | Write the rendered lineage to a file instead of stdout |
 | `--column COLUMN` | none | Trace a single output column through the query |
 | `--model MODEL` | none | dbt model name or unique id; usable without a SQL file |
 | `--manifest PATH` | auto-discovered | Path to a dbt `target/manifest.json` |

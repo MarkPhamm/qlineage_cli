@@ -8,7 +8,14 @@ from .columns import ColumnNode, trace_column
 from .dbt import DbtManifest, ManifestError
 from .models import Graph
 from .parser import ParseError, parse_sql_graph
-from .render import render_column_tree, render_html, render_json, render_mermaid, render_tree
+from .render import (
+    render_column_tree,
+    render_html,
+    render_json,
+    render_markdown,
+    render_mermaid,
+    render_tree,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -27,7 +34,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--format",
         choices=["tree", "json", "mermaid", "html"],
         default="html",
-        help="html opens in a browser; tree/json/mermaid print to the terminal",
+        help=(
+            "html opens in a browser; mermaid writes a markdown file; "
+            "tree/json print to the terminal"
+        ),
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        help="Write the rendered lineage to this file instead of stdout",
     )
     parser.add_argument(
         "--no-open",
@@ -77,6 +93,20 @@ def _render_graph(graph, fmt: str, *, sql: str = "", dialect: str = "snowflake")
     return render_tree(graph)
 
 
+def _write_output(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text if text.endswith("\n") else text + "\n")
+    print(f"qlineage: wrote {path}", file=sys.stderr)
+
+
+def _emit(args: argparse.Namespace, text: str) -> int:
+    if args.output:
+        _write_output(args.output, text)
+    else:
+        print(text)
+    return 0
+
+
 def _present(
     args: argparse.Namespace,
     graph: Graph,
@@ -85,12 +115,25 @@ def _present(
     column: ColumnNode | None = None,
     root_name: str = "query",
 ) -> int:
-    if args.format != "html":
-        print(_render_graph(graph, args.format, sql=sql, dialect=args.dialect))
+    if args.format == "mermaid":
+        # Piping stays raw mermaid; an interactive run gets a markdown file it can commit.
+        if not args.output and not sys.stdout.isatty():
+            print(render_mermaid(graph))
+            return 0
+        path = args.output or Path(f"{root_name}.lineage.md")
+        if path.suffix.lower() in {".md", ".markdown"}:
+            source = str(args.sql_file) if args.sql_file else None
+            _write_output(path, render_markdown(graph, title=root_name, source=source))
+        else:
+            _write_output(path, render_mermaid(graph))
         return 0
 
-    if args.no_open or not sys.stdout.isatty():
-        print(
+    if args.format != "html":
+        return _emit(args, _render_graph(graph, args.format, sql=sql, dialect=args.dialect))
+
+    if args.output or args.no_open or not sys.stdout.isatty():
+        return _emit(
+            args,
             render_html(
                 graph,
                 sql,
@@ -98,9 +141,8 @@ def _present(
                 static=True,
                 dialect=args.dialect,
                 root_name=root_name,
-            )
+            ),
         )
-        return 0
 
     from .ui.server import serve
 
@@ -180,8 +222,7 @@ def run(args: argparse.Namespace) -> int:
 
     column = trace_column(sql, args.column, dialect=args.dialect) if args.column else None
     if args.column and args.format != "html":
-        print(render_column_tree(column))
-        return 0
+        return _emit(args, render_column_tree(column))
 
     graph = parse_sql_graph(
         sql,

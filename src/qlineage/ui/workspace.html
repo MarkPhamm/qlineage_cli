@@ -24,6 +24,11 @@
   --amber: #d99a4e;
   --amber-soft: rgba(217, 154, 78, 0.16);
   --danger: #d97070;
+  --edge: #3d4b43;
+  --edge-in: #4fc2a4;
+  --edge-out: #b08ed6;
+  --edge-in-glow: rgba(79, 194, 164, 0.4);
+  --edge-out-glow: rgba(176, 142, 214, 0.4);
   --dot: #1e2622;
   --shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
@@ -53,6 +58,11 @@ html[data-theme="light"] {
   --amber: #b5762a;
   --amber-soft: rgba(181, 118, 42, 0.14);
   --danger: #b34a4a;
+  --edge: #b3c0b6;
+  --edge-in: #1f8f77;
+  --edge-out: #7a51ab;
+  --edge-in-glow: rgba(31, 143, 119, 0.28);
+  --edge-out-glow: rgba(122, 81, 171, 0.28);
   --dot: #dbe2da;
   --shadow: 0 12px 30px rgba(15, 30, 20, 0.12);
   --kw: #227a51;
@@ -257,10 +267,13 @@ main.no-left #resize-left, main.no-right #resize-right { display: none; }
 .node-chip-bg { fill: var(--panel-3); stroke: var(--line); rx: 4; }
 .node-chip-text { font-family: var(--mono); font-size: 9.5px; fill: var(--muted); }
 .port { fill: var(--panel); stroke: var(--muted-2); stroke-width: 1; }
-.edge { fill: none; stroke: var(--line); stroke-width: 1.6; }
-.edge.in { stroke: var(--accent); stroke-width: 2; }
-.edge.out { stroke: var(--blue); stroke-width: 2; }
-.edge.dim { opacity: 0.3; }
+.edge {
+  fill: none; stroke: var(--edge); stroke-width: 1.5; stroke-linecap: round;
+  transition: stroke 0.12s ease, opacity 0.12s ease;
+}
+.edge.in { stroke: var(--edge-in); stroke-width: 2.1; filter: drop-shadow(0 0 3px var(--edge-in-glow)); }
+.edge.out { stroke: var(--edge-out); stroke-width: 2.1; filter: drop-shadow(0 0 3px var(--edge-out-glow)); }
+.edge.dim { opacity: 0.22; }
 
 .canvas-controls, .legend {
   position: absolute; bottom: 14px; z-index: 5;
@@ -278,6 +291,7 @@ main.no-left #resize-left, main.no-right #resize-right { display: none; }
 .legend .row { display: flex; align-items: center; gap: 7px; margin-top: 6px; }
 .legend .row:first-of-type { margin-top: 8px; }
 .legend .sw { width: 9px; height: 9px; border-radius: 3px; }
+.legend .sw.line { width: 14px; height: 2px; border-radius: 2px; }
 .legend-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; color: var(--ink-2); }
 .legend-head button { background: none; border: 0; color: var(--muted); font-size: 11px; }
 .legend.collapsed .legend-body { display: none; }
@@ -461,14 +475,14 @@ pre.sql-preview {
         <pattern id="dots" width="26" height="26" patternUnits="userSpaceOnUse">
           <circle cx="1.5" cy="1.5" r="1.1" fill="var(--dot)" />
         </pattern>
-        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--line)" />
+        <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+          <path d="M 0 1 L 9.5 5 L 0 9 z" fill="var(--edge)" />
         </marker>
-        <marker id="arrow-in" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)" />
+        <marker id="arrow-in" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+          <path d="M 0 1 L 9.5 5 L 0 9 z" fill="var(--edge-in)" />
         </marker>
-        <marker id="arrow-out" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--blue)" />
+        <marker id="arrow-out" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+          <path d="M 0 1 L 9.5 5 L 0 9 z" fill="var(--edge-out)" />
         </marker>
       </defs>
       <g id="viewport">
@@ -498,6 +512,8 @@ pre.sql-preview {
         <div class="row"><span class="sw" style="background: var(--amber)"></span> Source table</div>
         <div class="row"><span class="sw" style="background: var(--accent)"></span> CTE / subquery</div>
         <div class="row"><span class="sw" style="background: var(--blue)"></span> Final output</div>
+        <div class="row"><span class="sw line" style="background: var(--edge-in)"></span> Feeds selection</div>
+        <div class="row"><span class="sw line" style="background: var(--edge-out)"></span> Reads selection</div>
       </div>
     </div>
   </section>

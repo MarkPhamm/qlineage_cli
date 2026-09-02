@@ -55,6 +55,18 @@ def render_mermaid(graph: Graph) -> str:
     return "\n".join(lines)
 
 
+def render_markdown(graph: Graph, *, title: str = "query", source: str | None = None) -> str:
+    lines = [f"# Lineage: {title}", ""]
+    if source:
+        lines.append(f"Source: `{source}`")
+        lines.append("")
+    lines.append("```mermaid")
+    lines.append(render_mermaid(graph))
+    lines.append("```")
+    lines.append("")
+    return "\n".join(lines)
+
+
 def render_html(
     graph: Graph | None,
     sql: str = "",
