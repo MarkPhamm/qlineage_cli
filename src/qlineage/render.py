@@ -7,7 +7,12 @@ from .columns import ColumnNode
 from .models import Graph
 
 
-def _tree_lines(graph: Graph, node_id: str, prefix: str = "", seen: set[str] | None = None) -> list[str]:
+def _tree_lines(
+    graph: Graph,
+    node_id: str,
+    prefix: str = "",
+    seen: set[str] | None = None,
+) -> list[str]:
     seen = seen or set()
     node = graph.nodes[node_id]
     lines = [f"{prefix}{node.label}"]

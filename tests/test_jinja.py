@@ -10,4 +10,7 @@ def test_replace_dbt_refs_and_sources():
 
 def test_display_placeholder():
     assert display_name_for_placeholder("__dbt_ref__.orders") == "ref:orders"
-    assert display_name_for_placeholder("__dbt_source__.stripe__payments") == "source:stripe.payments"
+    assert (
+        display_name_for_placeholder("__dbt_source__.stripe__payments")
+        == "source:stripe.payments"
+    )

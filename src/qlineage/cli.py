@@ -18,7 +18,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("sql_file", nargs="?", type=Path, help="SQL or dbt model file")
     parser.add_argument("--dialect", choices=["snowflake", "redshift"], default="snowflake")
     parser.add_argument("--manifest", type=Path, help="Path to dbt target/manifest.json")
-    parser.add_argument("--model", help="dbt model name/unique_id; useful when no SQL file is passed")
+    parser.add_argument(
+        "--model",
+        help="dbt model name/unique_id; useful when no SQL file is passed",
+    )
     parser.add_argument("--format", choices=["tree", "json", "mermaid"], default="tree")
     parser.add_argument("--column", help="Trace a single output column through the SQL")
     parser.add_argument(
@@ -84,7 +87,9 @@ def run(args: argparse.Namespace) -> int:
     if model and manifest:
         unique_id, node = model
         root_name = str(node.get("name") or (args.sql_file.stem if args.sql_file else unique_id))
-        sql = manifest.compiled_sql(unique_id, node) or (args.sql_file.read_text() if args.sql_file else "")
+        compiled = manifest.compiled_sql(unique_id, node)
+        file_sql = args.sql_file.read_text() if args.sql_file else ""
+        sql = compiled or file_sql
         relation_labels = manifest.relation_map()
     elif args.sql_file:
         if not args.sql_file.exists():

@@ -9,7 +9,7 @@ from .parser import ParseError
 @dataclass
 class ColumnNode:
     name: str
-    children: list["ColumnNode"] = field(default_factory=list)
+    children: list[ColumnNode] = field(default_factory=list)
 
 
 def trace_column(sql: str, column: str, *, dialect: str) -> ColumnNode:
@@ -27,9 +27,10 @@ def trace_column(sql: str, column: str, *, dialect: str) -> ColumnNode:
     visited: set[int] = set()
 
     def convert(current) -> ColumnNode:
+        name = (current.name or "").lower()
         if id(current) in visited:
-            return ColumnNode(f"{current.name} (shared)")
+            return ColumnNode(f"{name} (shared)")
         visited.add(id(current))
-        return ColumnNode(current.name, [convert(child) for child in current.downstream])
+        return ColumnNode(name, [convert(child) for child in current.downstream])
 
     return convert(node)

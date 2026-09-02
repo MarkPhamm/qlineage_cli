@@ -15,12 +15,18 @@ def _sqlglot():
         import sqlglot
         from sqlglot import exp
     except ImportError as exc:  # pragma: no cover
-        raise ParseError("sqlglot is required. Install qlineage-cli normally or run `pip install sqlglot`.") from exc
+        raise ParseError(
+            "sqlglot is required. Install qlineage-cli normally or run `pip install sqlglot`."
+        ) from exc
     return sqlglot, exp
 
 
 def _table_name(table) -> str:
-    parts = [getattr(table, "catalog", None), getattr(table, "db", None), getattr(table, "name", None)]
+    parts = [
+        getattr(table, "catalog", None),
+        getattr(table, "db", None),
+        getattr(table, "name", None),
+    ]
     return ".".join(str(part) for part in parts if part)
 
 
@@ -54,7 +60,8 @@ def parse_sql_graph(
         name = _table_name(table)
         if not name:
             return
-        if not getattr(table, "db", None) and not getattr(table, "catalog", None) and table.name in cte_names:
+        is_unqualified = not getattr(table, "db", None) and not getattr(table, "catalog", None)
+        if is_unqualified and table.name in cte_names:
             dep_id = f"cte:{table.name}"
             graph.add_node(dep_id, table.name, "cte")
         else:

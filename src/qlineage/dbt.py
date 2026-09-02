@@ -19,7 +19,7 @@ class DbtManifest:
         self.sources: dict[str, dict[str, Any]] = data.get("sources", {})
 
     @classmethod
-    def load(cls, path: Path) -> "DbtManifest":
+    def load(cls, path: Path) -> DbtManifest:
         try:
             data = json.loads(path.read_text())
         except (OSError, json.JSONDecodeError) as exc:
@@ -65,11 +65,21 @@ class DbtManifest:
     def relation_map(self) -> dict[str, str]:
         mapping: dict[str, str] = {}
         for unique_id, resource in self.all_resources().items():
-            parts = [resource.get("database"), resource.get("schema"), resource.get("alias") or resource.get("name")]
+            parts = [
+                resource.get("database"),
+                resource.get("schema"),
+                resource.get("alias") or resource.get("name"),
+            ]
             parts = [str(part) for part in parts if part]
             labels = []
             if parts:
-                labels.extend([".".join(parts).lower(), ".".join(parts[-2:]).lower(), parts[-1].lower()])
+                labels.extend(
+                    [
+                        ".".join(parts).lower(),
+                        ".".join(parts[-2:]).lower(),
+                        parts[-1].lower(),
+                    ]
+                )
             for relation_key in labels:
                 mapping[relation_key] = self.display_name(unique_id)
         return mapping
@@ -104,7 +114,11 @@ class DbtManifest:
 
         def visit(current: str, depth: int, seen: set[str]) -> None:
             resource = resources.get(current, {})
-            graph.add_node(current, self.display_name(current), resource.get("resource_type", "dbt"))
+            graph.add_node(
+                current,
+                self.display_name(current),
+                resource.get("resource_type", "dbt"),
+            )
             if current in seen or (max_depth is not None and depth >= max_depth):
                 return
             seen = {*seen, current}
@@ -112,7 +126,11 @@ class DbtManifest:
                 if dep not in resources:
                     continue
                 dep_resource = resources[dep]
-                graph.add_node(dep, self.display_name(dep), dep_resource.get("resource_type", "dbt"))
+                graph.add_node(
+                    dep,
+                    self.display_name(dep),
+                    dep_resource.get("resource_type", "dbt"),
+                )
                 graph.add_edge(current, dep)
                 visit(dep, depth + 1, seen)
 
