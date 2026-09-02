@@ -1,0 +1,42 @@
+{
+  "nodes": {
+    "model.demo.fct_customer_revenue": {
+      "resource_type": "model",
+      "name": "fct_customer_revenue",
+      "original_file_path": "models/fct_customer_revenue.sql",
+      "database": "analytics",
+      "schema": "marts",
+      "alias": "fct_customer_revenue",
+      "compiled_code": "with orders as (select order_id, customer_id from analytics.staging.stg_orders), payments as (select order_id, amount from raw.stripe.payments) select o.customer_id, sum(p.amount) as revenue from orders o join payments p using (order_id) group by 1",
+      "depends_on": {"nodes": ["model.demo.stg_orders", "source.demo.stripe.payments"]}
+    },
+    "model.demo.stg_orders": {
+      "resource_type": "model",
+      "name": "stg_orders",
+      "database": "analytics",
+      "schema": "staging",
+      "alias": "stg_orders",
+      "depends_on": {"nodes": ["source.demo.shop.orders"]}
+    }
+  },
+  "sources": {
+    "source.demo.stripe.payments": {
+      "resource_type": "source",
+      "source_name": "stripe",
+      "name": "payments",
+      "database": "raw",
+      "schema": "stripe",
+      "alias": "payments",
+      "depends_on": {"nodes": []}
+    },
+    "source.demo.shop.orders": {
+      "resource_type": "source",
+      "source_name": "shop",
+      "name": "orders",
+      "database": "raw",
+      "schema": "shop",
+      "alias": "orders",
+      "depends_on": {"nodes": []}
+    }
+  }
+}

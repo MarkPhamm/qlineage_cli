@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "qlineage-cli"
+version = "0.1.0"
+description = "Local SQL and dbt lineage for Snowflake and Redshift."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+  { name = "Minh Pham" }
+]
+keywords = ["sql", "dbt", "lineage", "snowflake", "redshift", "data-engineering"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Database",
+  "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = [
+  "sqlglot>=30.0,<31",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "ruff>=0.12",
+]
+
+[project.scripts]
+qlineage = "qlineage.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/MarkPhamm/qlineage_cli"
+Repository = "https://github.com/MarkPhamm/qlineage_cli"
+Issues = "https://github.com/MarkPhamm/qlineage_cli/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/qlineage"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
