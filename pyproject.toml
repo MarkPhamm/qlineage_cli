@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "qlineage-cli"
-version = "0.2.1"
+dynamic = ["version"]
 description = "QLineage CLI - local SQL and dbt lineage for Snowflake and Redshift, with a browser workspace."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -41,6 +41,9 @@ qlineage = "qlineage.cli:main"
 Homepage = "https://github.com/MarkPhamm/qlineage_cli"
 Repository = "https://github.com/MarkPhamm/qlineage_cli"
 Issues = "https://github.com/MarkPhamm/qlineage_cli/issues"
+
+[tool.hatch.version]
+path = "src/qlineage/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/qlineage"]

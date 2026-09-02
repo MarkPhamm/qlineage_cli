@@ -181,6 +181,7 @@ qlineage ui [options]
 | `--no-dbt` | off | Skip dbt manifest auto-discovery |
 | `--no-open` | off | Write a static HTML snapshot to stdout instead of serving |
 | `--port N` | `8765` | Workspace port; falls back to a free port if taken |
+| `--version` | | Print the installed qlineage version and exit |
 
 ### `qlineage ui`
 
@@ -189,6 +190,7 @@ qlineage ui [options]
 | `--port N` | `8765` | Port to listen on |
 | `--dialect snowflake\|redshift` | `snowflake` | Default dialect in the page |
 | `--no-open` | off | Start the server without opening a browser |
+| `--version` | | Print the installed qlineage version and exit |
 
 ## Why local-first?
 

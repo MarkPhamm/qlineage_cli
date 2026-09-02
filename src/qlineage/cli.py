@@ -4,6 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from . import __version__
 from .columns import ColumnNode, trace_column
 from .dbt import DbtManifest, ManifestError
 from .models import Graph
@@ -22,6 +23,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="qlineage",
         description="QLineage CLI - inspect SQL/dbt lineage locally, without a warehouse.",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"qlineage {__version__}",
     )
     parser.add_argument("sql_file", nargs="?", type=Path, help="SQL or dbt model file")
     parser.add_argument("--dialect", choices=["snowflake", "redshift"], default="snowflake")
@@ -162,6 +168,11 @@ def build_ui_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="qlineage ui",
         description="Open the QLineage CLI workspace in a browser.",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"qlineage {__version__}",
     )
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--dialect", choices=["snowflake", "redshift"], default="snowflake")
