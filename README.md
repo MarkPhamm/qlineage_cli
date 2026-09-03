@@ -208,6 +208,7 @@ qlineage ui [options]
 - Redshift SQL
 - CTE/table-level lineage
 - dbt `ref()` / `source()` fallback parsing
+- uncompiled model Jinja: `config`, `{% set %}`/`{% if %}` tags, comments, `this`, and common `dbt_utils` macros (`group_by`, `generate_surrogate_key`, `star`)
 - dbt `manifest.json` auto-discovery
 - compiled dbt SQL when available
 - recursive dbt model/source lineage
