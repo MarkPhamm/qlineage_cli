@@ -222,6 +222,13 @@ def test_pages_home_introduces_the_library(tmp_path):
     assert "What feeds this SQL model" in home
     assert "pipx install qlineage-cli" in home
     assert "assets/workspace.png" in home
+    assert 'href="home.css"' in home
+    assert 'href="/home.css"' not in home
+    css = (tmp_path / "home.css").read_text()
+    assert "#2f8f60" in css
+    assert "#f2f4f1" in css
+    assert "#2b5797" not in css
+    assert 'class="qh"' in home or 'class="qh ' in home
     example = (tmp_path / "example.html").read_text()
     assert example.lstrip().startswith("<!DOCTYPE html>")
     assert "fct_customer_revenue" in example
