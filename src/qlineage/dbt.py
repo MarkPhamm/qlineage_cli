@@ -1,14 +1,77 @@
 from __future__ import annotations
 
 import json
+import re
+from collections import deque
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from .models import Graph
 
+# One model, optional hop counts. `+name` is upstream, `name+` is downstream.
+_SELECTOR_RE = re.compile(
+    r"^(?:(?P<up>\d*)\+)?(?P<name>[A-Za-z_][A-Za-z0-9_.-]*)(?:\+(?P<down>\d*))?$"
+)
+
 
 class ManifestError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True)
+class LineageSelector:
+    """Hop limits are None when that direction is unlimited. A direction not walked stays off."""
+
+    name: str
+    upstream: int | None
+    downstream: int | None
+    walk_upstream: bool
+    walk_downstream: bool
+
+    @classmethod
+    def around(cls, name: str) -> LineageSelector:
+        return cls(name, None, None, True, True)
+
+    def capped(self, depth: int | None) -> LineageSelector:
+        if depth is None:
+            return self
+
+        def tighten(enabled: bool, limit: int | None) -> tuple[bool, int | None]:
+            if not enabled:
+                return False, None
+            if limit is None:
+                return True, depth
+            return True, min(limit, depth)
+
+        walk_up, upstream = tighten(self.walk_upstream, self.upstream)
+        walk_down, downstream = tighten(self.walk_downstream, self.downstream)
+        return LineageSelector(self.name, upstream, downstream, walk_up, walk_down)
+
+
+def parse_selector(text: str) -> LineageSelector:
+    """Parse `+model`, `model+`, `model+N`, or `+model+`. Anything wider is refused."""
+    match = _SELECTOR_RE.fullmatch((text or "").strip())
+    if match is None:
+        raise ManifestError(
+            "Lineage selectors name one model: +model, model+, model+N, or +model+. "
+            "Refusing to draw the whole project."
+        )
+    up_raw = match.group("up")
+    down_raw = match.group("down")
+
+    def hops(raw: str | None) -> int | None:
+        if raw is None or raw == "":
+            return None
+        return int(raw)
+
+    return LineageSelector(
+        match.group("name"),
+        hops(up_raw) if up_raw is not None else None,
+        hops(down_raw) if down_raw is not None else None,
+        up_raw is not None,
+        down_raw is not None,
+    )
 
 
 class DbtManifest:
@@ -17,6 +80,26 @@ class DbtManifest:
         self.data = data
         self.nodes: dict[str, dict[str, Any]] = data.get("nodes", {})
         self.sources: dict[str, dict[str, Any]] = data.get("sources", {})
+        self.parents: dict[str, tuple[str, ...]] = {}
+        self.children: dict[str, tuple[str, ...]] = {}
+        self._index_dependencies()
+
+    def _index_dependencies(self) -> None:
+        """Parents and children from depends_on, so a manifest without child_map still works."""
+        resources = self.all_resources()
+        parents: dict[str, list[str]] = {}
+        children: dict[str, list[str]] = {}
+        for unique_id, resource in resources.items():
+            deps = resource.get("depends_on", {}).get("nodes", []) or []
+            for dep in deps:
+                if dep not in resources or dep in parents.get(unique_id, ()):
+                    continue
+                parents.setdefault(unique_id, []).append(dep)
+                children.setdefault(dep, [])
+                if unique_id not in children[dep]:
+                    children[dep].append(unique_id)
+        self.parents = {key: tuple(value) for key, value in parents.items()}
+        self.children = {key: tuple(value) for key, value in children.items()}
 
     @classmethod
     def load(cls, path: Path) -> DbtManifest:
@@ -109,6 +192,7 @@ class DbtManifest:
         return None
 
     def dependency_graph(self, unique_id: str, max_depth: int | None = None) -> Graph:
+        """Upstream refs only. `--dbt-graph` keeps this walk."""
         graph = Graph(root=unique_id)
         resources = self.all_resources()
 
@@ -122,9 +206,7 @@ class DbtManifest:
             if current in seen or (max_depth is not None and depth >= max_depth):
                 return
             seen = {*seen, current}
-            for dep in resource.get("depends_on", {}).get("nodes", []):
-                if dep not in resources:
-                    continue
+            for dep in self.parents.get(current, ()):
                 dep_resource = resources[dep]
                 graph.add_node(
                     dep,
@@ -136,3 +218,58 @@ class DbtManifest:
 
         visit(unique_id, 0, set())
         return graph
+
+    def neighborhood(self, unique_id: str, selector: LineageSelector) -> Graph:
+        """Upstream and downstream hops around one model. Edges point at what a node reads."""
+        if unique_id not in self.all_resources():
+            raise ManifestError(f"Could not match {selector.name} in manifest.json.")
+        graph = Graph(root=unique_id)
+        self._put(graph, unique_id)
+        if selector.walk_upstream:
+            self._walk(graph, unique_id, downstream=False, limit=selector.upstream)
+        if selector.walk_downstream:
+            self._walk(graph, unique_id, downstream=True, limit=selector.downstream)
+        return graph
+
+    def model_sql(self, unique_id: str) -> tuple[dict[str, Any], str]:
+        node = self.nodes.get(unique_id)
+        if not node or node.get("resource_type") != "model":
+            raise ManifestError("Only dbt models have SQL to open.")
+        compiled = self.compiled_sql(unique_id, node)
+        if compiled and compiled.strip():
+            return node, compiled
+        original = node.get("original_file_path")
+        if original:
+            candidate = self.path.parent.parent / str(original)
+            if candidate.is_file():
+                return node, candidate.read_text()
+        name = node.get("name") or unique_id
+        raise ManifestError(f"No compiled SQL for {name}. Run dbt compile.")
+
+    def _put(self, graph: Graph, unique_id: str) -> None:
+        resource = self.all_resources().get(unique_id, {})
+        graph.add_node(
+            unique_id,
+            self.display_name(unique_id),
+            resource.get("resource_type", "dbt"),
+        )
+
+    def _walk(self, graph: Graph, start: str, *, downstream: bool, limit: int | None) -> None:
+        seen = {start}
+        queue: deque[tuple[str, int]] = deque([(start, 0)])
+        while queue:
+            current, depth = queue.popleft()
+            if limit is not None and depth >= limit:
+                continue
+            neighbors = (
+                self.children.get(current, ()) if downstream else self.parents.get(current, ())
+            )
+            for other in neighbors:
+                self._put(graph, other)
+                if downstream:
+                    graph.add_edge(other, current)
+                else:
+                    graph.add_edge(current, other)
+                if other not in seen:
+                    seen.add(other)
+                    queue.append((other, depth + 1))

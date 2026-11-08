@@ -6,7 +6,7 @@ from pathlib import Path
 
 from . import __version__
 from .columns import ColumnNode, trace_column
-from .dbt import DbtManifest, ManifestError
+from .dbt import DbtManifest, LineageSelector, ManifestError, parse_selector
 from .models import Graph
 from .parser import ParseError, parse_sql_graph
 from .render import (
@@ -34,7 +34,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--manifest", type=Path, help="Path to dbt target/manifest.json")
     parser.add_argument(
         "--model",
-        help="dbt model name/unique_id; useful when no SQL file is passed",
+        help=(
+            "dbt model name or unique id. Without a SQL file, opens that model's "
+            "upstream and downstream neighborhood"
+        ),
+    )
+    parser.add_argument(
+        "--select",
+        help=(
+            "Lineage around one model: +model (upstream), model+ (downstream), "
+            "model+N (N hops), +model+ (both). Refuses a whole-project graph"
+        ),
     )
     parser.add_argument(
         "--format",
@@ -61,9 +71,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dbt-graph",
         action="store_true",
-        help="Show recursive dbt model/source dependencies instead of internal SQL/CTE lineage",
+        help="Show upstream dbt dependencies instead of the neighborhood or CTE graph",
     )
-    parser.add_argument("--depth", type=int, help="Maximum dbt graph depth")
+    parser.add_argument(
+        "--depth",
+        type=int,
+        help="Maximum hops for --dbt-graph and --select",
+    )
     parser.add_argument(
         "--no-dbt",
         action="store_true",
@@ -120,6 +134,8 @@ def _present(
     sql: str = "",
     column: ColumnNode | None = None,
     root_name: str = "query",
+    manifest: DbtManifest | None = None,
+    mode: str = "sql",
 ) -> int:
     if args.format == "mermaid":
         # Piping stays raw mermaid; an interactive run gets a markdown file it can commit.
@@ -147,6 +163,7 @@ def _present(
                 static=True,
                 dialect=args.dialect,
                 root_name=root_name,
+                mode=mode,
             ),
         )
 
@@ -160,6 +177,9 @@ def _present(
         graph=graph,
         column=column,
         root_name=root_name,
+        relation_labels=manifest.relation_map() if manifest else None,
+        manifest=manifest,
+        mode=mode,
     )
     return 0
 
@@ -192,12 +212,50 @@ def run_ui(argv: list[str]) -> int:
     return 0
 
 
+def _selector_for(args: argparse.Namespace) -> LineageSelector | None:
+    if args.select:
+        return parse_selector(args.select)
+    # A model with no SQL file opens both directions. --dbt-graph stays upstream-only.
+    if args.model and not args.sql_file and not args.dbt_graph:
+        return LineageSelector.around(args.model)
+    return None
+
+
+def _require_model(manifest: DbtManifest, *names: str) -> tuple[str, dict]:
+    found: list[str] = []
+    for name in names:
+        if not name:
+            continue
+        match = manifest.find_model(name)
+        if match is None:
+            raise ManifestError(f"Could not match {name} in manifest.json.")
+        found.append(match[0])
+    if len(set(found)) != 1:
+        raise ManifestError("--model and --select name different models.")
+    unique_id = found[0]
+    return unique_id, manifest.nodes[unique_id]
+
+
 def run(args: argparse.Namespace) -> int:
-    if not args.sql_file and not args.model:
+    if not args.sql_file and not args.model and not args.select:
         raise ParseError("Provide a SQL file or --model MODEL_NAME.")
 
     start = args.sql_file or Path.cwd()
     manifest = _load_manifest(args, start)
+    selector = _selector_for(args)
+    if selector is not None:
+        if not manifest:
+            raise ManifestError("A lineage selector requires a dbt manifest.json.")
+        unique_id, _node = _require_model(manifest, args.model, selector.name)
+        graph = manifest.neighborhood(unique_id, selector.capped(args.depth))
+        return _present(
+            args,
+            graph,
+            root_name=manifest.display_name(unique_id),
+            manifest=manifest,
+            mode="neighborhood",
+        )
+
     model = _resolve_model(manifest, args) if manifest else None
 
     if args.dbt_graph:
@@ -207,7 +265,13 @@ def run(args: argparse.Namespace) -> int:
             raise ManifestError("Could not match the requested model in manifest.json.")
         unique_id, _node = model
         graph = manifest.dependency_graph(unique_id, args.depth)
-        return _present(args, graph, root_name=manifest.display_name(unique_id))
+        return _present(
+            args,
+            graph,
+            root_name=manifest.display_name(unique_id),
+            manifest=manifest,
+            mode="neighborhood",
+        )
 
     sql: str
     root_name: str
@@ -241,7 +305,14 @@ def run(args: argparse.Namespace) -> int:
         root_name=root_name,
         relation_labels=relation_labels,
     )
-    return _present(args, graph, sql=sql, column=column, root_name=root_name)
+    return _present(
+        args,
+        graph,
+        sql=sql,
+        column=column,
+        root_name=root_name,
+        manifest=manifest,
+    )
 
 
 def main(argv: list[str] | None = None) -> None:

@@ -22,6 +22,7 @@ def render_html(
     static: bool = True,
     dialect: str = "snowflake",
     root_name: str = "query",
+    mode: str = "sql",
 ) -> str:
     payload = {
         "sql": sql or "",
@@ -30,6 +31,7 @@ def render_html(
         "dialect": dialect,
         "rootName": root_name,
         "static": static,
+        "mode": mode,
     }
     encoded = json.dumps(payload, indent=2).replace("<", "\\u003c")
     return _load_template().replace(BOOTSTRAP_PLACEHOLDER, encoded)

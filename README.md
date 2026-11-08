@@ -73,15 +73,20 @@ dbt compile
 qlineage models/marts/fct_customer_revenue.sql
 ```
 
-To show the recursive dbt DAG instead of the internal SQL/CTE graph:
+With a manifest and no SQL file, `qlineage --model` opens that model's neighborhood: what it refs, and what refs it. The canvas stays on that model instead of drawing the whole project. Click a model to load its compiled SQL and switch to the CTE graph. `--depth` caps the hops.
+
+```bash
+qlineage --model fct_customer_revenue
+qlineage --select '+fct_customer_revenue'    # upstream only
+qlineage --select 'fct_customer_revenue+'    # downstream only
+qlineage --select 'fct_customer_revenue+1'   # one downstream hop
+qlineage --select '+fct_customer_revenue+'   # both directions
+```
+
+`--dbt-graph` stays the upstream walk it was before:
 
 ```bash
 qlineage models/marts/fct_customer_revenue.sql --dbt-graph
-```
-
-or select a model directly:
-
-```bash
 qlineage --model fct_customer_revenue --dbt-graph
 ```
 
@@ -174,10 +179,11 @@ qlineage ui [options]
 | `--format html\|tree\|json\|mermaid` | `html` | `html` opens the workspace; `mermaid` writes a markdown file; `tree`/`json` print to the terminal |
 | `--output PATH`, `-o PATH` | none | Write the rendered lineage to a file instead of stdout |
 | `--column COLUMN` | none | Trace a single output column through the query |
-| `--model MODEL` | none | dbt model name or unique id; usable without a SQL file |
+| `--model MODEL` | none | dbt model name or unique id. Without a SQL file, opens that model's neighborhood |
+| `--select SELECTOR` | none | One model: `+model`, `model+`, `model+N`, `+model+`. Refuses a whole-project graph |
 | `--manifest PATH` | auto-discovered | Path to a dbt `target/manifest.json` |
-| `--dbt-graph` | off | Show the recursive dbt model/source DAG instead of CTE lineage |
-| `--depth N` | unlimited | Maximum depth for `--dbt-graph` |
+| `--dbt-graph` | off | Upstream dbt dependencies, instead of the neighborhood or CTE graph |
+| `--depth N` | unlimited | Maximum hops for `--dbt-graph` and `--select` |
 | `--no-dbt` | off | Skip dbt manifest auto-discovery |
 | `--no-open` | off | Write a static HTML snapshot to stdout instead of serving |
 | `--port N` | `8765` | Workspace port; falls back to a free port if taken |
@@ -211,7 +217,7 @@ qlineage ui [options]
 - uncompiled model Jinja: `config`, `{% set %}`/`{% if %}` tags, comments, `this`, and common `dbt_utils` macros (`group_by`, `generate_surrogate_key`, `star`)
 - dbt `manifest.json` auto-discovery
 - compiled dbt SQL when available
-- recursive dbt model/source lineage
+- recursive dbt model/source lineage, including downstream of one model (`--model`, `--select`)
 - single-output-column lineage
 - per-node output columns with types inferred from SQL expressions
 - join detection and join keys per node

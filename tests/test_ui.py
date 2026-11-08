@@ -1,11 +1,15 @@
+import json
 import sys
+import threading
 from pathlib import Path
+from urllib.request import Request, urlopen
 
 from qlineage.cli import build_parser, run
 from qlineage.columns import ColumnNode
+from qlineage.dbt import DbtManifest
 from qlineage.parser import parse_sql_graph
 from qlineage.ui.html import render_html
-from qlineage.ui.server import analyze_column, analyze_lineage
+from qlineage.ui.server import analyze_column, analyze_lineage, build_server
 
 EXAMPLE_SQL = Path("examples/sql/customer_revenue.sql").read_text()
 
@@ -118,6 +122,78 @@ def test_cli_mermaid_output_without_markdown_suffix_stays_raw(tmp_path):
     )
     assert run(args) == 0
     assert target.read_text().startswith("flowchart TD")
+
+
+def _post(server, path: str, payload: dict) -> dict:
+    port = server.server_address[1]
+    body = json.dumps(payload).encode()
+    request = Request(
+        f"http://127.0.0.1:{port}{path}",
+        data=body,
+        headers={"Content-Type": "application/json"},
+    )
+    with urlopen(request) as response:
+        return json.load(response)
+
+
+def test_lineage_api_keeps_relation_labels_on_reparse(tmp_path):
+    target = tmp_path / "target"
+    target.mkdir()
+    manifest_path = target / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "nodes": {
+                    "model.demo.stg_orders": {
+                        "resource_type": "model",
+                        "name": "stg_orders",
+                        "database": "analytics",
+                        "schema": "staging",
+                        "alias": "stg_orders",
+                        "compiled_code": "select id from analytics.staging.orders",
+                        "depends_on": {"nodes": []},
+                    }
+                },
+                "sources": {
+                    "source.demo.raw.orders": {
+                        "resource_type": "source",
+                        "source_name": "raw",
+                        "name": "orders",
+                        "database": "analytics",
+                        "schema": "staging",
+                        "alias": "orders",
+                    }
+                },
+            }
+        )
+    )
+    manifest = DbtManifest.load(manifest_path)
+    server = build_server(
+        0,
+        "snowflake",
+        relation_labels=manifest.relation_map(),
+        manifest=manifest,
+        mode="neighborhood",
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        payload = _post(
+            server,
+            "/api/lineage",
+            {"sql": "select id from analytics.staging.orders", "dialect": "snowflake"},
+        )
+        labels = {node["label"] for node in payload["graph"]["nodes"]}
+        assert "source:raw.orders" in labels
+
+        opened = _post(server, "/api/model", {"id": "model.demo.stg_orders"})
+        opened_labels = {node["label"] for node in opened["graph"]["nodes"]}
+        assert opened["rootName"] == "stg_orders"
+        assert "source:raw.orders" in opened_labels
+        assert "select id from analytics.staging.orders" in opened["sql"]
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 def test_column_node_to_dict():

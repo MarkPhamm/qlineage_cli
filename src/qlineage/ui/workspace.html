@@ -181,6 +181,7 @@ main.no-left #resize-left, main.no-right #resize-right { display: none; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #06120c; font-weight: 600; }
 .btn.primary:hover { filter: brightness(1.07); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+button[hidden] { display: none; }
 .menu-wrap { position: relative; }
 .menu {
   position: absolute; top: 34px; left: 0; z-index: 40; min-width: 170px;
@@ -320,7 +321,8 @@ main.no-left #resize-left, main.no-right #resize-right { display: none; }
 }
 .badge.cte { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
 .badge.table { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 40%, var(--line)); }
-.badge.query { color: var(--blue); border-color: color-mix(in srgb, var(--blue) 40%, var(--line)); }
+.badge.query, .badge.model { color: var(--blue); border-color: color-mix(in srgb, var(--blue) 40%, var(--line)); }
+.badge.source { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 40%, var(--line)); }
 .insp-title { font-family: var(--mono); font-size: 17px; margin: 9px 0 0; word-break: break-all; }
 .section { padding: 13px 14px; border-bottom: 1px solid var(--line-soft); }
 .section-head {
@@ -431,6 +433,7 @@ pre.sql-preview {
     <div class="toolbar">
       <button class="btn" id="import-btn">Import Query</button>
       <button class="btn primary" id="visualize-btn">Visualize</button>
+      <button class="btn" id="back-models" hidden>Models</button>
       <div class="menu-wrap">
         <button class="btn" id="export-btn">Export &#9662;</button>
         <div class="menu" id="export-menu">
@@ -573,6 +576,10 @@ pre.sql-preview {
     static: !!boot.static,
     error: null,
     query: "",
+    mode: boot.mode || "sql",
+    viewMode: boot.mode === "neighborhood" ? "neighborhood" : "sql",
+    neighborhood: boot.mode === "neighborhood" ? boot.graph : null,
+    opening: false,
   };
 
   /* ------------------------------------------------------------------ */
@@ -668,15 +675,16 @@ pre.sql-preview {
 
   function kindLabel(node) {
     if (!node) return "NODE";
-    if (node.kind === "table") return "SOURCE";
+    if (node.kind === "table" || node.kind === "source") return "SOURCE";
     if (node.kind === "cte") return "CTE";
     if (node.kind === "query") return "OUTPUT";
+    if (node.kind === "model") return "MODEL";
     return node.kind.toUpperCase();
   }
 
   function kindColor(kind) {
-    if (kind === "table") return "var(--amber)";
-    if (kind === "query") return "var(--blue)";
+    if (kind === "table" || kind === "source") return "var(--amber)";
+    if (kind === "query" || kind === "model") return "var(--blue)";
     return "var(--accent)";
   }
 
@@ -920,10 +928,15 @@ pre.sql-preview {
 
   function renderStats() {
     const graph = state.graph;
-    const ctes = graph ? graph.nodes.filter((n) => n.kind === "cte").length : 0;
-    const sources = graph ? graph.nodes.filter((n) => n.kind === "table").length : 0;
+    const neighborhood = state.viewMode === "neighborhood";
+    const ctes = graph ? graph.nodes.filter((n) => n.kind === (neighborhood ? "model" : "cte")).length : 0;
+    const sources = graph
+      ? graph.nodes.filter((n) => n.kind === "table" || n.kind === "source").length
+      : 0;
     const joins = graph ? graph.nodes.reduce((total, n) => total + (n.joinCount || 0), 0) : 0;
-    el("stat-ctes").textContent = ctes + (ctes === 1 ? " CTE" : " CTEs");
+    el("stat-ctes").textContent = neighborhood
+      ? ctes + (ctes === 1 ? " model" : " models")
+      : ctes + (ctes === 1 ? " CTE" : " CTEs");
     el("stat-joins").textContent = joins + (joins === 1 ? " join" : " joins");
     el("stat-sources").textContent = sources + (sources === 1 ? " source" : " sources");
   }
@@ -973,11 +986,13 @@ pre.sql-preview {
     const upstream = upstreamOf(node.id);
     const downstream = downstreamOf(node.id);
     const columnsTitle = node.kind === "table" ? "Referenced columns" : kindLabel(node) + " output columns";
-    const columnsNote = node.kind === "table"
+    const columnsNote = node.kind === "table" || node.kind === "source"
       ? "Columns this query reads from the source relation."
       : node.kind === "query"
         ? "Columns produced by the final SELECT statement."
-        : "Columns produced by this CTE SELECT statement.";
+        : node.kind === "model"
+          ? "Click the model to open its compiled SQL."
+          : "Columns produced by this CTE SELECT statement.";
 
     const parts = [];
     parts.push(`<div class="insp-head">
@@ -1096,12 +1111,14 @@ pre.sql-preview {
 
   function renderOverviewPane() {
     const graph = state.graph;
-    const sources = graph.nodes.filter((n) => n.kind === "table");
-    const ctes = graph.nodes.filter((n) => n.kind === "cte");
+    const sources = graph.nodes.filter((n) => n.kind === "table" || n.kind === "source");
+    const ctes = graph.nodes.filter((n) => n.kind === "cte" || n.kind === "model");
     const root = nodeById(graph.root);
+    const title = root ? root.label : graph.root;
+    const badge = root ? root.kind : "query";
     inspector.innerHTML = `<div class="insp-head">
-        <span class="badge query">QUERY</span>
-        <h2 class="insp-title">${escapeText(graph.root)}</h2>
+        <span class="badge ${escapeText(badge)}">${escapeText(root ? kindLabel(root) : "QUERY")}</span>
+        <h2 class="insp-title">${escapeText(title)}</h2>
       </div>
       <div class="section">${statusCard()}</div>
       <div class="section">
@@ -1109,7 +1126,7 @@ pre.sql-preview {
         <div class="overview">
           <div><span>Nodes</span><strong>${graph.nodes.length}</strong></div>
           <div><span>Edges</span><strong>${graph.edges.length}</strong></div>
-          <div><span>CTEs</span><strong>${ctes.length}</strong></div>
+          <div><span>${state.viewMode === "neighborhood" ? "Models" : "CTEs"}</span><strong>${ctes.length}</strong></div>
           <div><span>Sources</span><strong>${sources.length}</strong></div>
         </div>
       </div>
@@ -1128,7 +1145,9 @@ pre.sql-preview {
           <span class="chev">&rsaquo;</span>
         </button></div>`).join("")}
       </div>` : ""}
-      <div class="insp-empty">Select a node in the graph for column-level detail.</div>`;
+      <div class="insp-empty">${state.viewMode === "neighborhood"
+        ? "Click a model to open its SQL. Sources stay on this graph."
+        : "Select a node in the graph for column-level detail."}</div>`;
   }
 
   function columnTraceText(node, depth) {
@@ -1220,8 +1239,11 @@ pre.sql-preview {
     try { svg.releasePointerCapture(event.pointerId); } catch (error) { /* pointer already released */ }
     nodesLayer.querySelectorAll(".dragging").forEach((card) => card.classList.remove("dragging"));
     if (!finished.moved) {
-      if (finished.type === "node") selectNode(finished.id);
-      else if (state.selected) selectNode(state.selected);
+      if (finished.type === "node") {
+        const node = nodeById(finished.id);
+        if (state.viewMode === "neighborhood" && node && node.kind === "model") openModel(node.id);
+        else selectNode(finished.id);
+      } else if (state.selected) selectNode(state.selected);
     }
   });
 
@@ -1466,10 +1488,70 @@ pre.sql-preview {
   /* ------------------------------------------------------------------ */
 
   el("visualize-btn").addEventListener("click", visualize);
+  el("back-models").addEventListener("click", showNeighborhood);
   el("dialect").addEventListener("change", () => {
     state.dialect = el("dialect").value;
-    if (state.graph) visualize();
+    if (textarea.value.trim()) visualize();
   });
+
+  function showModels(visible) {
+    el("back-models").hidden = !visible;
+  }
+
+  function showNeighborhood() {
+    if (!state.neighborhood) return;
+    state.viewMode = "neighborhood";
+    state.graph = state.neighborhood;
+    state.selected = null;
+    state.column = null;
+    state.error = null;
+    textarea.value = "";
+    state.sourceSql = "";
+    state.sourceName = "";
+    syncEditor();
+    renderGraph({ relayout: true });
+    setParseStat("Model neighborhood", "ok");
+    showModels(false);
+  }
+
+  async function openModel(id) {
+    if (state.static) {
+      toast("Static snapshot cannot open model SQL. Re-run qlineage to use the workspace.", true);
+      selectNode(id);
+      return;
+    }
+    if (state.opening) return;
+    state.opening = true;
+    setParseStat("Opening model", "");
+    try {
+      const response = await fetch("/api/model", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: id, dialect: el("dialect").value }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not open the model");
+      state.viewMode = "sql";
+      state.graph = payload.graph;
+      state.column = null;
+      state.selected = null;
+      state.error = null;
+      textarea.value = payload.sql || "";
+      state.sourceSql = textarea.value;
+      state.sourceName = payload.rootName || "";
+      state.dialect = el("dialect").value;
+      syncEditor();
+      renderGraph({ relayout: true });
+      setParseStat("Parsed successfully", "ok");
+      showModels(true);
+    } catch (error) {
+      setParseStat(error.message, "bad");
+      toast(error.message, true);
+      selectNode(id);
+    } finally {
+      state.opening = false;
+    }
+  }
 
   async function visualize() {
     const sql = textarea.value;
@@ -1499,10 +1581,12 @@ pre.sql-preview {
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not parse the query");
+      state.viewMode = "sql";
       state.graph = payload.graph;
       state.error = null;
       state.selected = null;
       state.column = await traceColumn(sql);
+      if (state.neighborhood) showModels(true);
       renderGraph({ relayout: true });
       setParseStat("Parsed successfully", "ok");
     } catch (error) {

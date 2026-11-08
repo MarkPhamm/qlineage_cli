@@ -59,6 +59,9 @@ class Graph:
     def upstream(self, node_id: str) -> list[str]:
         return [edge.target for edge in self.edges if edge.source == node_id]
 
+    def downstream(self, node_id: str) -> list[str]:
+        return [edge.source for edge in self.edges if edge.target == node_id]
+
     def to_dict(self) -> dict:
         return {
             "root": self.root,

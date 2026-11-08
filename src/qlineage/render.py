@@ -33,8 +33,37 @@ def _tree_lines(
     return lines
 
 
+def _seen_upstream(graph: Graph, node_id: str, seen: set[str]) -> None:
+    if node_id in seen:
+        return
+    seen.add(node_id)
+    for child in graph.upstream(node_id):
+        _seen_upstream(graph, child, seen)
+
+
 def render_tree(graph: Graph) -> str:
-    return "\n".join(_tree_lines(graph, graph.root))
+    lines = _tree_lines(graph, graph.root)
+    shown: set[str] = set()
+    _seen_upstream(graph, graph.root, shown)
+    if not any(node_id not in shown for node_id in graph.downstream(graph.root)):
+        return "\n".join(lines)
+    lines.append("downstream")
+    lines.extend(_downstream_lines(graph, graph.root, "", shown))
+    return "\n".join(lines)
+
+
+def _downstream_lines(graph: Graph, node_id: str, prefix: str, shown: set[str]) -> list[str]:
+    children = [child for child in graph.downstream(node_id) if child not in shown]
+    lines: list[str] = []
+    for index, child in enumerate(children):
+        last = index == len(children) - 1
+        connector = "└── " if last else "├── "
+        child_prefix = prefix + ("    " if last else "│   ")
+        label = graph.nodes[child].label
+        lines.append(f"{prefix}{connector}{label}")
+        shown.add(child)
+        lines.extend(_downstream_lines(graph, child, child_prefix, shown))
+    return lines
 
 
 def render_json(graph: Graph) -> str:
@@ -75,6 +104,7 @@ def render_html(
     static: bool = True,
     dialect: str = "snowflake",
     root_name: str = "query",
+    mode: str = "sql",
 ) -> str:
     return _render_html(
         graph,
@@ -83,6 +113,7 @@ def render_html(
         static=static,
         dialect=dialect,
         root_name=root_name,
+        mode=mode,
     )
 
 
