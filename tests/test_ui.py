@@ -1,4 +1,5 @@
 import json
+import subprocess
 import sys
 import threading
 from pathlib import Path
@@ -213,6 +214,17 @@ def test_static_neighborhood_embeds_model_sql_for_github_pages():
     assert "model.demo.rpt_customer_revenue" in html
     assert "select customer_id, revenue from analytics.marts.fct_customer_revenue" in html
     assert "query.html" in html
+
+
+def test_pages_home_introduces_the_library(tmp_path):
+    subprocess.check_call([sys.executable, "scripts/build_site.py", str(tmp_path)])
+    home = (tmp_path / "index.html").read_text()
+    assert "What feeds this SQL model" in home
+    assert "pipx install qlineage-cli" in home
+    assert "assets/workspace.png" in home
+    example = (tmp_path / "example.html").read_text()
+    assert example.lstrip().startswith("<!DOCTYPE html>")
+    assert "fct_customer_revenue" in example
 
 
 def test_column_node_to_dict():
