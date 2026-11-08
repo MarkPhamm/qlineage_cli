@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .models import Graph
+from .parser import ParseError, parse_sql_graph
 
 # One model, optional hop counts. `+name` is upstream, `name+` is downstream.
 _SELECTOR_RE = re.compile(
@@ -230,6 +231,27 @@ class DbtManifest:
         if selector.walk_downstream:
             self._walk(graph, unique_id, downstream=True, limit=selector.downstream)
         return graph
+
+    def embedded_models(self, graph: Graph, dialect: str) -> dict[str, dict]:
+        """Compiled SQL graphs for a static page, so a click works without the local server."""
+        labels = self.relation_map()
+        pages: dict[str, dict] = {}
+        for node in graph.nodes.values():
+            if node.kind != "model":
+                continue
+            try:
+                resource, sql = self.model_sql(node.id)
+                root_name = str(resource.get("name") or node.id)
+                cte = parse_sql_graph(
+                    sql,
+                    dialect=dialect,
+                    root_name=root_name,
+                    relation_labels=labels,
+                )
+            except (ManifestError, ParseError):
+                continue
+            pages[node.id] = {"sql": sql, "graph": cte.to_dict(), "rootName": root_name}
+        return pages
 
     def model_sql(self, unique_id: str) -> tuple[dict[str, Any], str]:
         node = self.nodes.get(unique_id)

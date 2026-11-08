@@ -23,6 +23,8 @@ def render_html(
     dialect: str = "snowflake",
     root_name: str = "query",
     mode: str = "sql",
+    models: dict | None = None,
+    links: list[dict] | None = None,
 ) -> str:
     payload = {
         "sql": sql or "",
@@ -32,6 +34,8 @@ def render_html(
         "rootName": root_name,
         "static": static,
         "mode": mode,
+        "models": models or {},
+        "links": links or [],
     }
     encoded = json.dumps(payload, indent=2).replace("<", "\\u003c")
     return _load_template().replace(BOOTSTRAP_PLACEHOLDER, encoded)

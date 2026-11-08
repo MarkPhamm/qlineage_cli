@@ -154,6 +154,9 @@ def _present(
         return _emit(args, _render_graph(graph, args.format, sql=sql, dialect=args.dialect))
 
     if args.output or args.no_open or not sys.stdout.isatty():
+        models = None
+        if manifest is not None and mode == "neighborhood":
+            models = manifest.embedded_models(graph, args.dialect)
         return _emit(
             args,
             render_html(
@@ -164,6 +167,7 @@ def _present(
                 dialect=args.dialect,
                 root_name=root_name,
                 mode=mode,
+                models=models,
             ),
         )
 

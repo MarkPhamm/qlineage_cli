@@ -105,6 +105,8 @@ def render_html(
     dialect: str = "snowflake",
     root_name: str = "query",
     mode: str = "sql",
+    models: dict | None = None,
+    links: list[dict] | None = None,
 ) -> str:
     return _render_html(
         graph,
@@ -114,6 +116,8 @@ def render_html(
         dialect=dialect,
         root_name=root_name,
         mode=mode,
+        models=models,
+        links=links,
     )
 
 

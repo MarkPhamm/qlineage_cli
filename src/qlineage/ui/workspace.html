@@ -111,8 +111,11 @@ header {
   background: none; border: 0; color: var(--muted); padding: 6px 10px;
   border-radius: 6px; font-size: 12px;
 }
-.nav button:hover { color: var(--ink); background: var(--panel-2); }
-.nav button.active { color: var(--ink); background: var(--panel-3); }
+.nav button:hover, .nav a:hover { color: var(--ink); background: var(--panel-2); }
+.nav button.active, .nav a.current { color: var(--ink); background: var(--panel-3); }
+.nav a {
+  color: var(--muted); text-decoration: none; padding: 6px 10px; border-radius: 6px; font-size: 12px;
+}
 .spacer { flex: 1; }
 .search {
   display: flex; align-items: center; gap: 8px;
@@ -143,7 +146,9 @@ main.no-left.no-right { grid-template-columns: 0 minmax(0, 1fr) 0; }
 .panel { background: var(--panel); display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 .panel.left { border-right: 1px solid var(--line); }
 .panel.right { border-left: 1px solid var(--line); }
-main.no-left .panel.left, main.no-right .panel.right { display: none; }
+main.no-left .panel.left, main.no-right .panel.right {
+  visibility: hidden; overflow: hidden; pointer-events: none;
+}
 
 .resizer {
   position: absolute; top: 0; bottom: 0; width: 9px; z-index: 20;
@@ -579,8 +584,24 @@ pre.sql-preview {
     mode: boot.mode || "sql",
     viewMode: boot.mode === "neighborhood" ? "neighborhood" : "sql",
     neighborhood: boot.mode === "neighborhood" ? boot.graph : null,
+    models: boot.models || {},
     opening: false,
   };
+
+  (boot.links || []).forEach((link) => {
+    const anchor = document.createElement("a");
+    anchor.href = link.href;
+    anchor.textContent = link.label;
+    if (link.current) anchor.className = "current";
+    document.querySelector(".nav").appendChild(anchor);
+  });
+  if (window.innerWidth < 1200) main.classList.add("no-left");
+  if (state.static && state.viewMode === "neighborhood") {
+    const intro = document.querySelector(".hero p");
+    if (intro) {
+      intro.textContent = "Snapshot of one model’s neighborhood. Click a model to read its SQL. Nothing here calls a warehouse.";
+    }
+  }
 
   /* ------------------------------------------------------------------ */
   /* editor                                                              */
@@ -1514,10 +1535,30 @@ pre.sql-preview {
     showModels(false);
   }
 
+  function showModel(payload) {
+    state.viewMode = "sql";
+    state.graph = payload.graph;
+    state.column = null;
+    state.selected = null;
+    state.error = null;
+    textarea.value = payload.sql || "";
+    state.sourceSql = textarea.value;
+    state.sourceName = payload.rootName || "";
+    syncEditor();
+    renderGraph({ relayout: true });
+    setParseStat("Parsed successfully", "ok");
+    showModels(!!state.neighborhood);
+  }
+
   async function openModel(id) {
+    const embedded = state.models[id];
     if (state.static) {
-      toast("Static snapshot cannot open model SQL. Re-run qlineage to use the workspace.", true);
-      selectNode(id);
+      if (!embedded) {
+        toast("This snapshot has no SQL for that model.", true);
+        selectNode(id);
+        return;
+      }
+      showModel(embedded);
       return;
     }
     if (state.opening) return;
@@ -1531,19 +1572,8 @@ pre.sql-preview {
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not open the model");
-      state.viewMode = "sql";
-      state.graph = payload.graph;
-      state.column = null;
-      state.selected = null;
-      state.error = null;
-      textarea.value = payload.sql || "";
-      state.sourceSql = textarea.value;
-      state.sourceName = payload.rootName || "";
       state.dialect = el("dialect").value;
-      syncEditor();
-      renderGraph({ relayout: true });
-      setParseStat("Parsed successfully", "ok");
-      showModels(true);
+      showModel(payload);
     } catch (error) {
       setParseStat(error.message, "bad");
       toast(error.message, true);

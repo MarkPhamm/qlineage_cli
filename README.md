@@ -42,6 +42,8 @@ Select any node to inspect its columns, types, joins, and SQL:
 
 ![Node inspector](https://raw.githubusercontent.com/MarkPhamm/qlineage_cli/main/docs/inspector.png)
 
+The same workspace is published from `main` to GitHub Pages: [markphamm.github.io/qlineage_cli](https://markphamm.github.io/qlineage_cli/). It is a snapshot of the example neighborhood. Click a model to read its SQL. Editing and Visualize stay on your machine.
+
 To print a tree in the terminal instead:
 
 ```bash

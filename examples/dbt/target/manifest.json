@@ -16,7 +16,17 @@
       "database": "analytics",
       "schema": "staging",
       "alias": "stg_orders",
+      "compiled_code": "select order_id, customer_id from raw.shop.orders",
       "depends_on": {"nodes": ["source.demo.shop.orders"]}
+    },
+    "model.demo.rpt_customer_revenue": {
+      "resource_type": "model",
+      "name": "rpt_customer_revenue",
+      "database": "analytics",
+      "schema": "marts",
+      "alias": "rpt_customer_revenue",
+      "compiled_code": "select customer_id, revenue from analytics.marts.fct_customer_revenue",
+      "depends_on": {"nodes": ["model.demo.fct_customer_revenue"]}
     }
   },
   "sources": {

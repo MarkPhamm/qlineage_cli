@@ -196,6 +196,25 @@ def test_lineage_api_keeps_relation_labels_on_reparse(tmp_path):
         server.server_close()
 
 
+def test_static_neighborhood_embeds_model_sql_for_github_pages():
+    from qlineage.dbt import DbtManifest, LineageSelector
+
+    manifest = DbtManifest.load(Path("examples/dbt/target/manifest.json"))
+    unique_id, _node = manifest.find_model("fct_customer_revenue")
+    graph = manifest.neighborhood(unique_id, LineageSelector.around("fct_customer_revenue"))
+    pages = manifest.embedded_models(graph, "snowflake")
+    html = render_html(
+        graph,
+        static=True,
+        mode="neighborhood",
+        models=pages,
+        links=[{"href": "query.html", "label": "Query", "current": False}],
+    )
+    assert "model.demo.rpt_customer_revenue" in html
+    assert "select customer_id, revenue from analytics.marts.fct_customer_revenue" in html
+    assert "query.html" in html
+
+
 def test_column_node_to_dict():
     tree = ColumnNode("revenue", [ColumnNode("amount")])
     assert tree.to_dict() == {
