@@ -162,19 +162,12 @@ qlineage query.sql --format tree
 qlineage query.sql --format mermaid
 qlineage query.sql --column revenue</pre>
       </div>
-      <div>
-        <p class="qh-sub" style="margin-top:0">The workspace names each node, lists the columns it produces, and shows the SQL that built it. The terminal prints the same graph as a tree, JSON, or Mermaid.</p>
-        <div class="qh-gallery">
-          <a class="qh-card" href="example.html">
-            <img src="assets/workspace.png" alt="The neighborhood graph around fct_customer_revenue" width="1440" height="900">
-            <span>The neighborhood around fct_customer_revenue</span>
-          </a>
-          <a class="qh-card" href="query.html">
-            <img src="assets/inspector.png" alt="The inspector for a selected node, with its columns and SQL" width="1200" height="800">
-            <span>One node, its columns, and its SQL</span>
-          </a>
-        </div>
-      </div>
+      <figure class="qh-figure">
+        <a class="qh-frame" href="query.html">
+          <img src="assets/node.png" alt="The payments node selected in the graph, with its columns in the inspector" width="1160" height="830">
+        </a>
+        <figcaption>Select <b>payments</b> and the inspector lists the columns it produces. <a href="query.html">Open this query</a> or <a href="example.html">the neighborhood</a>.</figcaption>
+      </figure>
     </div>
   </section>
 

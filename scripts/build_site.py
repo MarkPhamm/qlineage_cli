@@ -28,7 +28,7 @@ def build_site(out: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)
     assets = out / "assets"
     assets.mkdir(exist_ok=True)
-    for name in ("workspace.png", "inspector.png"):
+    for name in ("workspace.png", "inspector.png", "node.png"):
         shutil.copyfile(ROOT / "docs" / name, assets / name)
     shutil.copyfile(ROOT / "docs" / "home.css", out / "home.css")
     shutil.copyfile(ROOT / "docs" / "home.js", out / "home.js")
