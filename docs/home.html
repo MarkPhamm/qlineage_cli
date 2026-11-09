@@ -198,30 +198,6 @@ qlineage query.sql --column revenue</pre>
   <span>QLineage __VERSION__ · MIT</span>
   <a href="https://github.com/MarkPhamm/qlineage_cli">github.com/MarkPhamm/qlineage_cli</a>
 </footer>
-<script>
-(function () {
-  document.querySelectorAll(".qh-copy").forEach(function (button) {
-    button.addEventListener("click", function () {
-      var text = button.getAttribute("data-copy") || "";
-      navigator.clipboard.writeText(text).then(function () {
-        var previous = button.textContent;
-        button.textContent = "Copied";
-        setTimeout(function () { button.textContent = previous; }, 1200);
-      });
-    });
-  });
-  document.querySelectorAll(".qh-tabs__bar button").forEach(function (button) {
-    button.addEventListener("click", function () {
-      var bar = button.parentElement;
-      bar.querySelectorAll("button").forEach(function (other) {
-        other.setAttribute("aria-selected", other === button ? "true" : "false");
-      });
-      bar.parentElement.querySelectorAll("pre.qh-code").forEach(function (panel) {
-        panel.classList.toggle("show", panel.id === button.getAttribute("data-tab"));
-      });
-    });
-  });
-})();
-</script>
+<script src="home.js"></script>
 </body>
 </html>

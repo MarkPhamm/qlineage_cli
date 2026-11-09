@@ -31,6 +31,7 @@ def build_site(out: Path) -> None:
     for name in ("workspace.png", "inspector.png"):
         shutil.copyfile(ROOT / "docs" / name, assets / name)
     shutil.copyfile(ROOT / "docs" / "home.css", out / "home.css")
+    shutil.copyfile(ROOT / "docs" / "home.js", out / "home.js")
     home = HOME.read_text(encoding="utf-8").replace("__VERSION__", __version__)
     (out / "index.html").write_text(home)
 

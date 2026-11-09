@@ -229,6 +229,17 @@ def test_pages_home_introduces_the_library(tmp_path):
     assert "#f2f4f1" in css
     assert "#2b5797" not in css
     assert 'class="qh"' in home or 'class="qh ' in home
+    assert 'src="home.js"' in home
+    assert 'src="/home.js"' not in home
+    script = (tmp_path / "home.js").read_text()
+    assert "prefers-reduced-motion" in script
+    assert "navigator.clipboard" in script
+    assert "q-w" in script
+    assert "qh-flow__wires" in script
+    assert "CODE" in script
+    assert "@media (prefers-reduced-motion: reduce)" in css
+    assert "opacity: 1" in css
+    assert "961px" in css
     example = (tmp_path / "example.html").read_text()
     assert example.lstrip().startswith("<!DOCTYPE html>")
     assert "fct_customer_revenue" in example
