@@ -240,6 +240,9 @@ def test_pages_home_introduces_the_library(tmp_path):
     assert "@media (prefers-reduced-motion: reduce)" in css
     assert "opacity: 1" in css
     assert "961px" in css
+    assert 'class="qh-hero__text"' in home
+    assert 'button.textContent = "Copy"' in script
+    assert "scrollHeight" in script
     example = (tmp_path / "example.html").read_text()
     assert example.lstrip().startswith("<!DOCTYPE html>")
     assert "fct_customer_revenue" in example

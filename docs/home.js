@@ -7,25 +7,40 @@
   function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
   function onView(el, fn) {
+    var done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      io.disconnect();
+      window.removeEventListener("scroll", check, true);
+      fn(el);
+    }
+    function check() {
+      var r = el.getBoundingClientRect();
+      var end = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
+      var seen = r.top < window.innerHeight && r.bottom > 0;
+      if (r.bottom < 0 || (end && seen)) finish();
+    }
     var io = new IntersectionObserver(function (es) {
       es.forEach(function (e) {
-        if (e.isIntersecting || e.boundingClientRect.bottom < 0) {
-          io.unobserve(e.target);
-          fn(e.target);
-        }
+        if (e.isIntersecting || e.boundingClientRect.bottom < 0) finish();
+        else check();
       });
     }, { rootMargin: "0px 0px -12% 0px" });
     io.observe(el);
+    window.addEventListener("scroll", check, true);
+    check();
   }
 
   root.querySelectorAll(".qh-copy").forEach(function (button) {
+    var timer = 0;
     button.addEventListener("click", function () {
       if (!navigator.clipboard) return;
       var text = button.getAttribute("data-copy") || "";
       navigator.clipboard.writeText(text).then(function () {
-        var previous = button.textContent;
         button.textContent = "Copied";
-        setTimeout(function () { button.textContent = previous; }, 1200);
+        clearTimeout(timer);
+        timer = setTimeout(function () { button.textContent = "Copy"; }, 1200);
       }, function () {});
     });
   });
